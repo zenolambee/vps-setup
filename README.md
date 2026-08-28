@@ -10,8 +10,8 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] P2: Node.js 20 + npm + pnpm (Corepack)
 - [x] P3: Python Environment
 - [x] P4: Docker + Docker Compose
-- [ ] P5+: PostgreSQL, Redis, MinIO, Caddy, OpenCode, MetaTrader —
-      belum diimplementasikan
+- [x] P5: PostgreSQL + Redis + MinIO
+- [ ] P6+: Caddy, OpenCode, MetaTrader — belum diimplementasikan
 
 ## Struktur
 
@@ -25,6 +25,10 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/node.sh` | P2: instalasi & validasi Node.js 20, npm, pnpm/Corepack |
 | `lib/python.sh` | P3: instalasi & validasi Python 3, pip, venv |
 | `lib/docker.sh` | P4: instalasi & validasi Docker Engine + Docker Compose v2 |
+| `lib/postgres.sh` | P5: instalasi & validasi PostgreSQL |
+| `lib/redis.sh` | P5: instalasi & validasi Redis |
+| `lib/minio.sh` | P5: deployment & validasi MinIO (Docker, image resmi) |
+| `lib/storage.sh` | P5: cek konflik/binding port storage + orkestrator P5 |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
@@ -125,6 +129,38 @@ dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
   perubahan firewall.
 - P4 tidak menjalankan project dan tidak clone repository; tidak ada tool
   P5+ (PostgreSQL/Redis/MinIO/Caddy/OpenCode) yang dipasang.
+
+## Cakupan P5
+
+- **PostgreSQL** (Toko Online butuh 14+, Content-Pilot memakai PostgreSQL +
+  Prisma) — dipasang dari paket resmi Ubuntu/Debian (`postgresql`,
+  `postgresql-client`; pada Ubuntu 24.04 = PostgreSQL 16). Service systemd
+  `postgresql` diaktifkan (`enable --now` hanya jika belum aktif) dan
+  enabled untuk boot. Health check: `pg_isready -h 127.0.0.1 -p 5432`.
+  Installer **tidak** membuat database/user project dan tidak menetapkan
+  password apa pun.
+- **Redis** — dipasang dari paket resmi Ubuntu/Debian (`redis-server`).
+  Service systemd `redis-server`, bind default lokal (127.0.0.1) tidak
+  diubah; tidak expose ke internet; tidak membuka firewall. Health check:
+  `redis-cli -h 127.0.0.1 ping` → `PONG`.
+- **MinIO** — object storage S3-compatible untuk Content-Pilot. Deployment
+  generik standalone via **Docker Compose** (image resmi `minio/minio` dari
+  Docker Hub, tidak bergantung pada repository project), persistent volume
+  `minio-data`, container `vps-minio`, restart policy `unless-stopped`.
+  API `127.0.0.1:9000`, console `127.0.0.1:9001` (lokal saja, tidak
+  dipublikasikan). Credential access key/secret key dibuat acak saat
+  runtime dan disimpan di `/etc/minio/minio.env` (mode 600) — tidak ada
+  credential di source code, tidak dicetak ke log.
+- **Port** — konflik port dicek sebelum service diaktifkan (5432, 6379,
+  9000, 9001); port yang dipakai service lain tidak akan diambil alih.
+  Binding port diverifikasi lokal setelah deploy.
+- Validasi: `validate_postgres`, `validate_redis`, `validate_minio`,
+  `validate_storage_ports`, `validate_minio_storage`.
+- Idempotent: service yang sudah benar dilewati (`[SKIP]`); tidak ada
+  duplicate container/volume; data, database, volume, dan credential
+  existing tidak dihapus/diubah.
+- Installer tidak membuat database project, tidak menjalankan migration,
+  dan tidak clone repository.
 
 ## Log
 
