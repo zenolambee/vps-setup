@@ -9,7 +9,8 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] P1: Git + GitHub CLI
 - [x] P2: Node.js 20 + npm + pnpm (Corepack)
 - [x] P3: Python Environment
-- [ ] P4+: Docker, PostgreSQL, Redis, MinIO, Caddy, OpenCode, MetaTrader —
+- [x] P4: Docker + Docker Compose
+- [ ] P5+: PostgreSQL, Redis, MinIO, Caddy, OpenCode, MetaTrader —
       belum diimplementasikan
 
 ## Struktur
@@ -23,6 +24,7 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/git.sh` | P1: instalasi & validasi Git dan GitHub CLI |
 | `lib/node.sh` | P2: instalasi & validasi Node.js 20, npm, pnpm/Corepack |
 | `lib/python.sh` | P3: instalasi & validasi Python 3, pip, venv |
+| `lib/docker.sh` | P4: instalasi & validasi Docker Engine + Docker Compose v2 |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
@@ -95,6 +97,34 @@ dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
 - Idempotent: Python/pip/venv/dev yang sudah benar dilewati (`[SKIP]`).
 - **MT-Info** hanya didukung pada sisi Python; **MetaTrader/MT5 sengaja
   tidak termasuk** dalam instalasi ini.
+
+## Cakupan P4
+
+- **Docker Engine** — diinstal dari repository resmi Docker
+  (`download.docker.com`) dengan metode keyring modern dan aman.
+  Tidak menggunakan `curl | sh` dari sumber tidak resmi.
+  Jika Docker sudah terpasang dari sumber resmi, dilewati (`[SKIP]`).
+  Container/image/volume/network/config milik pengguna tidak dihapus,
+  tidak ada reset Docker.
+- **Docker Compose v2** — melalui plugin `docker compose`
+  (`docker-compose-plugin`). Compose v1 (`docker-compose` Python package)
+  tidak dipasang.
+- **Service** — memastikan `docker` aktif (`systemctl enable --now docker`
+  hanya jika belum aktif); tidak ada restart service/VPS yang tidak perlu.
+- **User access** — user non-root development yang terdeteksi (UID>=1000)
+  ditambahkan ke group `docker`; group yang ada tidak dihapus/diubah;
+  root tetap dapat menggunakan Docker. Perubahan group berlaku pada
+  session baru, tanpa logout paksa.
+- Validasi: `validate_docker` (`docker --version`, `docker info`),
+  `validate_compose` (`docker compose version`), `validate_docker_service`
+  (service aktif + daemon dapat diakses), validasi konfigurasi compose
+  sederhana, dan test container ringan resmi (`hello-world`) di lingkungan
+  terisolasi — semua resource test dibersihkan.
+- **Keamanan**: tidak ada expose Docker API TCP, tidak ada port daemon
+  terbuka, tidak ada remote API, tidak ada insecure config, tidak ada
+  perubahan firewall.
+- P4 tidak menjalankan project dan tidak clone repository; tidak ada tool
+  P5+ (PostgreSQL/Redis/MinIO/Caddy/OpenCode) yang dipasang.
 
 ## Log
 

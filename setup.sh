@@ -3,7 +3,7 @@
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT
 
-for lib in common validators packages git node python; do
+for lib in common validators packages git node python docker; do
     source "$ROOT/lib/$lib.sh"
 done
 
@@ -25,7 +25,8 @@ main() {
     run_p1
     run_p2
     run_p3
-    log OK "vps-setup selesai: P0 Foundation + P1 Git/GitHub CLI + P2 Node.js 20/npm/pnpm + P3 Python Environment terpasang."
+    run_p4
+    log OK "vps-setup selesai: P0 Foundation + P1 Git/GitHub CLI + P2 Node.js 20/npm/pnpm + P3 Python Environment + P4 Docker/Compose terpasang."
 }
 
 main "$@"
