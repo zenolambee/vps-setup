@@ -5,14 +5,15 @@ Idempotent dan aman dijalankan berulang kali.
 
 ## Status Milestone
 
-- [x] P0: Foundation — validasi environment, system update, paket dasar
-- [x] P1: Git + GitHub CLI
-- [x] P2: Node.js 20 + npm + pnpm (Corepack)
-- [x] P3: Python Environment
-- [x] P4: Docker + Docker Compose
-- [x] P5: PostgreSQL + Redis + MinIO
-- [x] P6: Caddy Reverse Proxy + HTTPS Foundation
-- [ ] P7+: OpenCode, MetaTrader — belum diimplementasikan
+- [x] **P0: Foundation** — validasi environment, system update, paket dasar — *complete*
+- [x] **P1: Git + GitHub CLI** — *complete*
+- [x] **P2: Node.js 20 + npm + pnpm (Corepack)** — *complete*
+- [x] **P3: Python Environment** — *complete*
+- [x] **P4: Docker + Docker Compose v2** — *complete*
+- [x] **P5: PostgreSQL + Redis + MinIO** — *complete*
+- [x] **P6: Caddy Reverse Proxy + HTTPS Foundation** — *complete*
+- [ ] **P7: OpenCode** — *pending*
+- [ ] P8+: monitoring, deployment tooling — *pending*
 
 ## Struktur
 
@@ -30,7 +31,7 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/redis.sh` | P5: instalasi & validasi Redis |
 | `lib/minio.sh` | P5: deployment & validasi MinIO (Docker, image resmi) |
 | `lib/storage.sh` | P5: cek konflik/binding port storage + orkestrator P5 |
-| `lib/caddy.sh` | P6: instalasi, konfigurasi, service & validasi Caddy |
+| `lib/caddy.sh` | P6: instalasi, konfigurasi foundation, service, port safety & validasi Caddy |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
@@ -166,25 +167,85 @@ dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
 
 ## Cakupan P6
 
-- **Caddy** — reverse proxy + HTTPS foundation, diinstal dari repository
-  resmi Caddy (Cloudsmith) dengan keyring GPG yang aman. Tidak ada
-  `curl | sh`. Jika sudah terpasang dari sumber resmi, dilewati (`[SKIP]`).
-- **Konfigurasi** — minimal dan aman: hanya listen `:80` dengan pesan
-  placeholder. Tidak ada route project, tidak ada domain, tidak ada
-  reverse proxy ke Content-Pilot/BotSpace/Toko Online/MT-Info, tidak ada
-  sertifikat self-signed.
-- **HTTPS/automatic TLS foundation** — sertifikat publik akan diperoleh
-  otomatis oleh Caddy (Let's Encrypt) saat domain dikonfigurasi pada
-  milestone deployment berikutnya. P6 tidak meminta/menyimpan domain atau
-  certificate credential manual.
-- **Port 80/443 safety** — port dicek sebelum konfigurasi. Jika dipakai
-  service lain, Caddy tidak memaksa mengambil alih port; binary/config
-  tetap divalidasi.
-- **Service** — `systemctl enable --now caddy` hanya jika belum aktif;
-  tidak ada restart service lain, tidak ada reboot.
-- Validasi: `validate_caddy` (`caddy version`), `validate_caddy_config`
-  (`caddy validate --config`), `validate_caddy_ports`, `validate_caddy_service`.
-- P6 tidak melakukan deployment project dan tidak clone repository.
+**Caddy Reverse Proxy & HTTPS Foundation** — hanya *foundation*. P6 menyiapkan
+web server yang siap dipakai sebagai reverse proxy, tanpa mengonfigurasi domain
+atau route project apa pun.
+
+### Instalasi
+
+- **Sumber resmi** — repository resmi Caddy (Cloudsmith) dengan keyring GPG
+  (`/usr/share/keyrings/caddy-stable-archive-keyring.gpg`), metode apt yang
+  didukung untuk Ubuntu/Debian. Tidak ada `curl | sh`.
+- **Instalasi existing dipakai apa adanya** — jika `caddy version` berhasil,
+  instalasi yang ada dipertahankan (`[SKIP]`), tanpa reinstall dan tanpa
+  menambahkan repository. Repository hanya disiapkan saat Caddy benar-benar
+  belum ada.
+
+### Konfigurasi
+
+- `/etc/caddy/Caddyfile` **tidak pernah ditimpa**. File hanya dibuat jika belum
+  ada, dengan konfigurasi foundation: admin API `localhost:2019`, `import`
+  dari `conf.d`, dan `:80` dengan endpoint `/healthz` + pesan placeholder.
+- `/etc/caddy/conf.d/` disiapkan sebagai tempat **site block per-domain**
+  (satu file per domain) untuk milestone deployment berikutnya. Isi direktori
+  yang sudah ada tidak dibaca ulang, tidak diubah, tidak dihapus.
+- Konfigurasi valid **tanpa membutuhkan domain**: `caddy validate` berhasil
+  dengan `conf.d` kosong maupun setelah site block berdomain ditambahkan.
+- Tidak ada domain project, route BotSpace/Content-Pilot/Toko Online/MT-Info,
+  perubahan DNS, sertifikat manual, maupun TLS self-signed.
+
+### HTTPS foundation
+
+- Automatic HTTPS Caddy dibiarkan aktif (tidak ada `auto_https off`).
+  Saat site block berdomain ditambahkan ke `conf.d`, Caddy menerbitkan
+  sertifikat ACME dan mengaktifkan redirect HTTP→HTTPS secara otomatis —
+  tanpa perubahan pada `Caddyfile` utama.
+- Storage sertifikat (`/var/lib/caddy/.local/share/caddy`, owner service user
+  `caddy`) diverifikasi siap. P6 tidak menerbitkan sertifikat apa pun.
+
+### Port safety (80/443)
+
+- Port 80 dan 443 diperiksa **sebelum dan sesudah** konfigurasi: process
+  pemilik, alamat bind, dan container Docker yang mempublikasikan port.
+- Jika port dipegang process/container lain: warning ditampilkan, port
+  **tidak diambil alih**, process/container **tidak dihentikan**, service Caddy
+  tidak diaktifkan — namun binary dan konfigurasi Caddy tetap divalidasi.
+
+### Service
+
+- `systemctl enable --now caddy` hanya dijalankan bila service belum aktif
+  **dan** port 80/443 aman. Service yang sudah sehat tidak direstart/di-reload
+  hanya untuk validasi. Tidak ada restart service lain, tidak ada reboot VPS.
+
+### Keamanan
+
+- Admin API dibatasi ke `localhost:2019` dan diverifikasi tidak ter-bind ke
+  interface publik; service `caddy-api` tidak diaktifkan.
+- PostgreSQL (5432), Redis (6379), MinIO (9000/9001), dan Docker API
+  (2375/2376) diverifikasi tetap privat — P6 tidak membuat reverse proxy ke
+  backend mana pun dan tidak mengubah konfigurasi P4/P5.
+- Tidak ada credential, token, domain, atau private key di repository.
+
+### Validasi
+
+| Fungsi | Cakupan |
+|---|---|
+| `validate_caddy` | `caddy version`, path binary |
+| `validate_caddy_config` | `caddy validate --config`, jumlah file `conf.d` |
+| `validate_caddy_ports` | listener, process owner, bind address, container port 80/443 |
+| `validate_caddy_service` | unit systemd, status active, boot state, MainPID/user |
+| `validate_caddy_admin_security` | admin API tidak terekspos publik |
+| `validate_caddy_backend_isolation` | port backend P4/P5 tetap privat |
+| `validate_caddy_https_foundation` | storage sertifikat ACME, automatic HTTPS aktif |
+| `validate_caddy_local_http` | HTTP lokal `127.0.0.1:80` (hanya jika port 80 milik Caddy) |
+
+### Idempotency
+
+Run kedua exit 0 tanpa reinstall, tanpa menimpa konfigurasi, tanpa duplikasi
+site block, tanpa mengambil alih port, dan tanpa restart service.
+
+P6 tidak melakukan deployment project, tidak clone repository, dan tidak
+memasang tool P7+ (OpenCode, monitoring, deployment tooling).
 
 ## Log
 
