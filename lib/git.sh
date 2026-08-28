@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-GH_APT_KEYRING="/usr/share/keyrings/githubcli-archive-keyring.gpg"
-GH_APT_SOURCE="/etc/apt/sources.list.d/github-cli.list"
-GH_REPO_URL="https://cli.github.com/packages"
+# GitHub CLI (install_gh, setup_gh_repo) didefinisikan di lib/tools.sh (P7)
+# sebagai pemilik tunggal, dipakai bersama oleh run_p1 dan run_p7.
 
 git_is_usable() {
     command -v git >/dev/null 2>&1 && git --version >/dev/null 2>&1
@@ -33,39 +32,6 @@ install_git() {
         log OK "Git berhasil diinstal: $(git --version)"
     else
         die "Gagal menginstal Git. Periksa dengan 'apt-get install -y git' manual"
-    fi
-}
-
-setup_gh_repo() {
-    local arch
-    arch="$(dpkg --print-architecture)"
-    log INFO "Menambahkan repository resmi GitHub CLI..."
-    mkdir -p "$(dirname "$GH_APT_KEYRING")"
-    if ! curl -fsSL "$GH_REPO_URL/githubcli-archive-keyring.gpg" -o "$GH_APT_KEYRING" 2>/dev/null; then
-        die "Gagal mengunduh kunci GPG GitHub CLI dari $GH_REPO_URL"
-    fi
-    chmod go+r "$GH_APT_KEYRING"
-    if ! echo "deb [arch=$arch signed-by=$GH_APT_KEYRING] $GH_REPO_URL stable main" > "$GH_APT_SOURCE" 2>/dev/null; then
-        die "Gagal menulis konfigurasi repository GitHub CLI di $GH_APT_SOURCE"
-    fi
-    log OK "Repository resmi GitHub CLI ditambahkan"
-}
-
-install_gh() {
-    if gh_is_usable; then
-        log SKIP "GitHub CLI sudah tersedia: $(gh --version | head -1)"
-        return 0
-    fi
-    setup_gh_repo
-    log INFO "Menyegarkan apt setelah menambahkan repo GitHub CLI..."
-    if ! apt-get update -y >/dev/null 2>&1; then
-        die "apt-get update gagal setelah menambahkan repo GitHub CLI"
-    fi
-    log INFO "Menginstal GitHub CLI..."
-    if apt-get install -y gh >/dev/null 2>&1 && gh_is_usable; then
-        log OK "GitHub CLI berhasil diinstal: $(gh --version | head -1)"
-    else
-        die "Gagal menginstal GitHub CLI. Periksa dengan 'apt-get install -y gh' manual"
     fi
 }
 

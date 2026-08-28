@@ -12,7 +12,7 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] **P4: Docker + Docker Compose v2** — *complete*
 - [x] **P5: PostgreSQL + Redis + MinIO** — *complete*
 - [x] **P6: Caddy Reverse Proxy + HTTPS Foundation** — *complete*
-- [ ] **P7: OpenCode** — *pending*
+- [x] **P7: Developer & AI CLI Tools** (OpenCode, npm, pnpm, GitHub CLI) — *complete*
 - [ ] P8+: monitoring, deployment tooling — *pending*
 
 ## Struktur
@@ -32,16 +32,39 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/minio.sh` | P5: deployment & validasi MinIO (Docker, image resmi) |
 | `lib/storage.sh` | P5: cek konflik/binding port storage + orkestrator P5 |
 | `lib/caddy.sh` | P6: instalasi, konfigurasi foundation, service, port safety & validasi Caddy |
+| `lib/tools.sh` | P7: developer & AI CLI tools — OpenCode, npm, pnpm/Corepack, GitHub CLI |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
+
+Menjalankan seluruh milestone (P0 → P7) secara berurutan:
 
 ```bash
 sudo bash setup.sh
 ```
 
-Setiap komponen berikutnya (P2+) ditambahkan sebagai modul baru di `lib/`
+Skrip idempotent: tool yang sudah terpasang dan valid akan `[SKIP]`, bukan
+diinstal ulang. Menjalankan satu milestone saja juga bisa, dengan men-source
+modul lalu memanggil `run_pN`:
+
+```bash
+export ROOT=/root/vps-setup
+for lib in common validators packages git node python docker postgres redis minio storage caddy tools; do
+  source "$ROOT/lib/$lib.sh"
+done
+setup_logging
+run_p7
+```
+
+Setiap komponen berikutnya ditambahkan sebagai modul baru di `lib/`
 dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
+
+**Prinsip credential:** repository ini hanya berisi skrip installer/validator
+dan dokumentasi. Tidak ada password, token, API key, cookie, private key, atau
+config rahasia yang disimpan di dalamnya. Installer tidak pernah meminta,
+membaca, mencetak, atau menulis credential — authentication yang sudah ada di
+VPS (mis. `gh auth`) dipertahankan apa adanya. Repository project pengguna
+(BotSpace, Content-Pilot, Toko Online, MT-Info) tidak pernah di-clone.
 
 ## Cakupan P0
 
@@ -246,6 +269,72 @@ site block, tanpa mengambil alih port, dan tanpa restart service.
 
 P6 tidak melakukan deployment project, tidak clone repository, dan tidak
 memasang tool P7+ (OpenCode, monitoring, deployment tooling).
+
+## Cakupan P7
+
+**Developer & AI CLI Tools** — tooling global/system-level untuk development di
+VPS. Tidak ada yang dipasang ke dalam repository project pengguna.
+
+### Tools yang dikelola
+
+| Tool | Sumber | Perilaku |
+|---|---|---|
+| **Node.js** | sudah dikelola P2 | P7 hanya memverifikasi major `>= 20`. Versi yang lebih baru **dipertahankan, tidak di-downgrade**. P7 tidak memasang/mengganti Node. |
+| **npm** | bundled dengan Node.js | `[SKIP]` bila sudah ada; versi bawaan tidak dipaksakan. |
+| **pnpm** | **Corepack** (`corepack enable pnpm`) | Shim `pnpm`/`pnpx` di direktori bin Node. Versi pnpm tetap ditentukan per-project via field `packageManager` di `package.json`. Yarn tidak diaktifkan. |
+| **GitHub CLI (`gh`)** | repository resmi `cli.github.com` | Instalasi existing dipakai apa adanya (`[SKIP]`). Tidak reinstall, tidak logout, tidak menyentuh authentication. |
+| **OpenCode** | paket resmi npm `opencode-ai` (global) | Instalasi existing dipakai apa adanya (`[SKIP]`). Hanya binary + validasi versi. |
+
+### Fungsi
+
+- `install_node_tools` — verifikasi Node kompatibel (tanpa downgrade), pastikan
+  npm dan Corepack tersedia
+- `install_pnpm` — aktifkan shim pnpm via Corepack
+- `install_gh` — GitHub CLI dari repository resmi
+- `install_opencode` — OpenCode global dari paket resmi npm
+- `validate_tools` — validasi seluruh tool + postur credential
+- `run_p7` — orkestrator milestone
+
+`lib/tools.sh` adalah **pemilik tunggal** `install_pnpm` dan `install_gh`;
+`run_p1` (`lib/git.sh`) dan `run_p2` (`lib/node.sh`) memakai fungsi yang sama
+sehingga tidak ada definisi ganda di shell yang di-source `setup.sh`.
+
+### Credential & authentication
+
+- OpenCode: **tidak ada login/authentication**, tidak ada API key yang ditulis.
+  `~/.config/opencode` tidak dibuat otomatis; jika sudah ada milik pengguna,
+  tidak dibaca dan tidak diubah. Tidak ada config OpenCode palsu yang dibuat.
+- GitHub CLI: status `gh auth` hanya diperiksa boolean (authenticated atau
+  belum). Token tidak pernah dibaca, dicetak, atau ditulis. Tidak ada
+  `gh auth login` otomatis, tidak ada logout.
+- Tidak ada credential, token, API key, cookie, password, atau private key yang
+  masuk ke repository.
+
+### Batasan
+
+- Tidak clone repository project apa pun (BotSpace, Content-Pilot, Toko Online,
+  MT-Info, maupun lainnya).
+- Tidak memasang dependency project (`npm install`/`pnpm install` di project).
+- Tidak mengubah konfigurasi project pengguna.
+- Tidak restart service dan tidak reboot VPS.
+
+### Validasi
+
+| Fungsi | Cakupan |
+|---|---|
+| `validate_tools_node` | `node --version`, major `>=` minimum (bukan pinning) |
+| `validate_npm` | `npm --version`, path |
+| `validate_corepack` | `corepack --version`, path |
+| `validate_pnpm` | `pnpm --version`, path shim |
+| `validate_gh` | `gh --version`, path |
+| `validate_gh_auth_untouched` | status auth tidak diubah, token tidak dibaca |
+| `validate_opencode` | `opencode --version`, path binary |
+| `validate_opencode_no_credentials` | tidak ada config/credential yang dibuat installer |
+
+Selain itu diverifikasi: `bash -n` pada semua skrip, tidak ada definisi fungsi
+ganda antar modul, run kedua exit 0 dengan seluruh tool `[SKIP]`, tidak ada
+secret di file ter-track Git, tidak ada repository project ter-clone, dan
+uptime VPS tidak berubah (tanpa reboot/restart).
 
 ## Log
 

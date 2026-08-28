@@ -3,7 +3,7 @@
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT
 
-for lib in common validators packages git node python docker postgres redis minio storage caddy; do
+for lib in common validators packages git node python docker postgres redis minio storage caddy tools; do
     source "$ROOT/lib/$lib.sh"
 done
 
@@ -28,7 +28,8 @@ main() {
     run_p4
     run_p5
     run_p6
-    log OK "vps-setup selesai: P0-P6 terpasang (Foundation, Git/GitHub CLI, Node.js 20, Python, Docker, PostgreSQL/Redis/MinIO, Caddy)."
+    run_p7
+    log OK "vps-setup selesai: P0-P7 terpasang (Foundation, Git/GitHub CLI, Node.js 20, Python, Docker, PostgreSQL/Redis/MinIO, Caddy, Developer/AI CLI tools)."
 }
 
 main "$@"

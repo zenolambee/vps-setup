@@ -96,24 +96,8 @@ install_npm() {
     log OK "npm tersedia: $(npm --version)"
 }
 
-install_pnpm() {
-    if ! corepack_is_usable; then
-        die "Corepack tidak tersedia. Corepack dibundel dengan Node.js ${NODE_MAJOR} — periksa instalasi Node.js"
-    fi
-    if pnpm_is_usable; then
-        log SKIP "pnpm sudah tersedia via Corepack: $(pnpm --version)"
-        return 0
-    fi
-    log INFO "Mengaktifkan shim pnpm via Corepack (corepack enable)..."
-    if ! corepack enable 2>/dev/null; then
-        die "Gagal mengaktifkan Corepack (corepack enable)"
-    fi
-    if pnpm_is_usable; then
-        log OK "pnpm tersedia via Corepack: $(pnpm --version)"
-    else
-        log WARN "pnpm shim belum aktif di shell ini. Jalankan 'corepack enable' atau buka shell baru"
-    fi
-}
+# install_pnpm didefinisikan di lib/tools.sh (P7) sebagai pemilik tunggal,
+# dipakai bersama oleh run_p2 dan run_p7 — hindari duplikasi definisi.
 
 validate_corepack() {
     if ! corepack_is_usable; then
