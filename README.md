@@ -11,7 +11,8 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] P3: Python Environment
 - [x] P4: Docker + Docker Compose
 - [x] P5: PostgreSQL + Redis + MinIO
-- [ ] P6+: Caddy, OpenCode, MetaTrader — belum diimplementasikan
+- [x] P6: Caddy Reverse Proxy + HTTPS Foundation
+- [ ] P7+: OpenCode, MetaTrader — belum diimplementasikan
 
 ## Struktur
 
@@ -29,6 +30,7 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/redis.sh` | P5: instalasi & validasi Redis |
 | `lib/minio.sh` | P5: deployment & validasi MinIO (Docker, image resmi) |
 | `lib/storage.sh` | P5: cek konflik/binding port storage + orkestrator P5 |
+| `lib/caddy.sh` | P6: instalasi, konfigurasi, service & validasi Caddy |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
@@ -161,6 +163,28 @@ dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
   existing tidak dihapus/diubah.
 - Installer tidak membuat database project, tidak menjalankan migration,
   dan tidak clone repository.
+
+## Cakupan P6
+
+- **Caddy** — reverse proxy + HTTPS foundation, diinstal dari repository
+  resmi Caddy (Cloudsmith) dengan keyring GPG yang aman. Tidak ada
+  `curl | sh`. Jika sudah terpasang dari sumber resmi, dilewati (`[SKIP]`).
+- **Konfigurasi** — minimal dan aman: hanya listen `:80` dengan pesan
+  placeholder. Tidak ada route project, tidak ada domain, tidak ada
+  reverse proxy ke Content-Pilot/BotSpace/Toko Online/MT-Info, tidak ada
+  sertifikat self-signed.
+- **HTTPS/automatic TLS foundation** — sertifikat publik akan diperoleh
+  otomatis oleh Caddy (Let's Encrypt) saat domain dikonfigurasi pada
+  milestone deployment berikutnya. P6 tidak meminta/menyimpan domain atau
+  certificate credential manual.
+- **Port 80/443 safety** — port dicek sebelum konfigurasi. Jika dipakai
+  service lain, Caddy tidak memaksa mengambil alih port; binary/config
+  tetap divalidasi.
+- **Service** — `systemctl enable --now caddy` hanya jika belum aktif;
+  tidak ada restart service lain, tidak ada reboot.
+- Validasi: `validate_caddy` (`caddy version`), `validate_caddy_config`
+  (`caddy validate --config`), `validate_caddy_ports`, `validate_caddy_service`.
+- P6 tidak melakukan deployment project dan tidak clone repository.
 
 ## Log
 
