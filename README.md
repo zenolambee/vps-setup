@@ -8,8 +8,9 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] P0: Foundation — validasi environment, system update, paket dasar
 - [x] P1: Git + GitHub CLI
 - [x] P2: Node.js 20 + npm + pnpm (Corepack)
-- [ ] P3+: Python, Docker, PostgreSQL, Redis, MinIO, Caddy, OpenCode,
-      MetaTrader — belum diimplementasikan
+- [x] P3: Python Environment
+- [ ] P4+: Docker, PostgreSQL, Redis, MinIO, Caddy, OpenCode, MetaTrader —
+      belum diimplementasikan
 
 ## Struktur
 
@@ -21,6 +22,7 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/packages.sh` | System update & instalasi paket dasar (idempotent) |
 | `lib/git.sh` | P1: instalasi & validasi Git dan GitHub CLI |
 | `lib/node.sh` | P2: instalasi & validasi Node.js 20, npm, pnpm/Corepack |
+| `lib/python.sh` | P3: instalasi & validasi Python 3, pip, venv |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
@@ -72,6 +74,27 @@ dan dipanggil dari `setup.sh` — tanpa merombak struktur yang ada.
 - Idempotent: jika Node 20/npm/pnpm sudah benar, dilewati (`[SKIP]`).
 - Tidak menginstal dependency project (tidak `npm install`/`pnpm install`,
   tidak build, tidak clone).
+
+## Cakupan P3
+
+- **Python 3** — menggunakan Python 3 stabil bawaan resmi Ubuntu/Debian
+  (`/usr/bin/python3`). Tidak mengganti atau menghapus Python sistem.
+  Menyiapkan environment universal untuk development, terutama bagian
+  Python dari **MT-Info** (Telegram bridge/backtester).
+- **pip** — dipasang melalui paket sistem `python3-pip` (metode aman untuk
+  Ubuntu/Debian). Tidak menggunakan `sudo pip install` ke system Python;
+  tidak menginstal dependency project apa pun.
+- **venv** — memastikan `python3-venv` (ensurepip) tersedia; pengujian
+  pembuatan virtual environment dilakukan di directory temporary dan
+  dihapus kembali setelah test.
+- **Build tools** — `python3-dev` dipasang hanya jika belum tersedia,
+  untuk dukungan pembuatan native extension/wheel.
+- Validasi: `validate_python` (`python3 --version`), `validate_pip`
+  (`python3 -m pip --version`), `validate_venv` (buat venv, jalankan
+  python & pip di dalamnya, lalu hapus).
+- Idempotent: Python/pip/venv/dev yang sudah benar dilewati (`[SKIP]`).
+- **MT-Info** hanya didukung pada sisi Python; **MetaTrader/MT5 sengaja
+  tidak termasuk** dalam instalasi ini.
 
 ## Log
 
