@@ -13,7 +13,8 @@ Idempotent dan aman dijalankan berulang kali.
 - [x] **P5: PostgreSQL + Redis + MinIO** — *complete*
 - [x] **P6: Caddy Reverse Proxy + HTTPS Foundation** — *complete*
 - [x] **P7: Developer & AI CLI Tools** (OpenCode, npm, pnpm, GitHub CLI) — *complete*
-- [ ] P8+: monitoring, deployment tooling — *pending*
+- [x] **P8: Project Requirements Compatibility** (BotSpace, Content-Pilot, Toko-Online) — *complete*
+- [ ] P9+: monitoring, deployment tooling — *pending*
 
 ## Struktur
 
@@ -33,11 +34,12 @@ Idempotent dan aman dijalankan berulang kali.
 | `lib/storage.sh` | P5: cek konflik/binding port storage + orkestrator P5 |
 | `lib/caddy.sh` | P6: instalasi, konfigurasi foundation, service, port safety & validasi Caddy |
 | `lib/tools.sh` | P7: developer & AI CLI tools — OpenCode, npm, pnpm/Corepack, GitHub CLI |
+| `lib/projects.sh` | P8: validasi kebutuhan runtime project (read-only, tanpa clone) |
 | `config/packages.conf` | Daftar paket dasar P0 (satu per baris) |
 
 ## Penggunaan
 
-Menjalankan seluruh milestone (P0 → P7) secara berurutan:
+Menjalankan seluruh milestone (P0 → P8) secara berurutan:
 
 ```bash
 sudo bash setup.sh
@@ -49,7 +51,7 @@ modul lalu memanggil `run_pN`:
 
 ```bash
 export ROOT=/root/vps-setup
-for lib in common validators packages git node python docker postgres redis minio storage caddy tools; do
+for lib in common validators packages git node python docker postgres redis minio storage caddy tools projects; do
   source "$ROOT/lib/$lib.sh"
 done
 setup_logging
@@ -335,6 +337,119 @@ Selain itu diverifikasi: `bash -n` pada semua skrip, tidak ada definisi fungsi
 ganda antar modul, run kedua exit 0 dengan seluruh tool `[SKIP]`, tidak ada
 secret di file ter-track Git, tidak ada repository project ter-clone, dan
 uptime VPS tidak berubah (tanpa reboot/restart).
+
+## Cakupan P8
+
+**Project Requirements Compatibility** — memverifikasi bahwa runtime/tooling di
+VPS memenuhi kebutuhan project pengguna. **Read-only sepenuhnya terhadap
+project**: tidak ada repository yang di-clone, tidak ada dependency yang
+dipasang, tidak ada source/`.env`/konfigurasi project yang disentuh.
+
+Cakupan: **BotSpace**, **Content-Pilot**, **Toko-Online**.
+MetaTrader dan MT-Info **tidak** termasuk.
+
+### Matriks kebutuhan
+
+Legenda kategori: **system runtime** = disediakan installer (P2–P5);
+**project dependency** = milik project, tidak dipasang global oleh P8.
+
+| Project | Requirement | Kategori | Cara pemenuhan |
+|---|---|---|---|
+| BotSpace | Node.js `>= 20` | system runtime | P2 |
+| BotSpace | pnpm `9.15.5` | system runtime (per-project) | Corepack, field `packageManager` |
+| BotSpace | Turbo CLI | **project dependency** | devDependency monorepo → `pnpm turbo` / `npx turbo` |
+| BotSpace | TypeScript | **project dependency** | devDependency → `pnpm tsc` / `npx tsc` |
+| Content-Pilot | Node.js `>= 20.11` | system runtime | P2 |
+| Content-Pilot | pnpm `10.34.5` | system runtime (per-project) | Corepack, field `packageManager` |
+| Content-Pilot | Docker Engine | system runtime | P4 |
+| Content-Pilot | Docker Compose v2 | system runtime | P4 (`docker-compose-plugin`) |
+| Content-Pilot | PostgreSQL | system runtime | P5 |
+| Content-Pilot | Redis | system runtime | P5 |
+| Content-Pilot | MinIO | system runtime | P5 (container `vps-minio`) |
+| Toko-Online | Node.js `20.x` | system runtime | P2 |
+| Toko-Online | npm `10.x` | system runtime | bundled Node.js |
+| Toko-Online | PostgreSQL | system runtime | P5 |
+
+### pnpm multi-versi tanpa mengganti global
+
+pnpm global **tidak diganti dan tidak di-downgrade** demi project. P8
+memverifikasi Corepack mampu menyediakan versi berbeda per project melalui
+field `packageManager` di `package.json` masing-masing project:
+
+- BotSpace → `pnpm@9.15.5`
+- Content-Pilot → `pnpm@10.34.5`
+
+Verifikasi dijalankan di direktori temporary yang langsung dihapus — repository
+project tidak pernah disentuh. Versi pnpm yang terverifikasi tersimpan di cache
+Corepack level sistem, sehingga run berikutnya tidak perlu mengunduh lagi.
+Setiap pemeriksaan mengonfirmasi versi pnpm global tetap sama sebelum dan
+sesudah probe.
+
+### Turbo & TypeScript
+
+Keduanya adalah devDependency project, bukan runtime sistem. P8 **tidak**
+memasangnya secara global agar versi yang dipakai project tidak tertimpa.
+Yang diverifikasi adalah ketersediaan *runner* (`npx`, `pnpm`) sehingga tool
+tersebut dapat dijalankan per-project tanpa instalasi global. Bila sudah ada
+`turbo`/`tsc` global, keberadaannya hanya dilaporkan dan tidak diubah.
+
+### Service (read-only)
+
+- **PostgreSQL** — hanya `psql --version`, status service, dan `pg_isready` ke
+  `127.0.0.1`. Tidak membuat database/user project, tidak mengubah password,
+  tidak menyentuh konfigurasi.
+- **Redis** — status service dan `redis-cli ping`. Data tidak dibaca maupun
+  diubah.
+- **MinIO** — container existing dan health endpoint lokal. Credential tidak
+  dibaca, bucket tidak dibuat/dihapus.
+- **Docker** — hanya `docker --version`, status daemon, dan
+  `docker compose version`.
+
+Tidak ada service yang di-start, di-stop, atau di-restart oleh P8.
+
+### Fungsi
+
+- `validate_botspace_requirements`
+- `validate_content_pilot_requirements`
+- `validate_toko_online_requirements`
+- `validate_project_requirements` — orkestrator + ringkasan PASS/WARN/DEP
+- `run_p8` — orkestrator milestone
+
+Helper bersama: `validate_project_postgres`, `validate_project_redis`,
+`validate_project_minio`, `proj_verify_pnpm_version`, `proj_ver_ge`.
+
+### Cara validasi
+
+```bash
+sudo bash setup.sh          # seluruh P0-P8
+```
+
+Atau khusus P8 (lihat contoh source modul di bagian Penggunaan):
+
+```bash
+run_p8
+```
+
+Setiap kebutuhan dilaporkan dengan status:
+
+| Status | Arti |
+|---|---|
+| `PASS` | terpenuhi oleh runtime sistem saat ini |
+| `WARN` | belum terpenuhi — jalankan milestone terkait (P2/P4/P5). P8 tidak memasang atau mengubah apa pun |
+| `DEP` | project dependency, sengaja tidak dipasang global |
+
+`WARN` bukan kegagalan: `run_p8` tetap exit 0 sehingga installer dapat
+dijalankan pada VPS yang belum lengkap tanpa menghentikan proses.
+
+### Batasan
+
+- Tidak clone repository project apa pun.
+- Tidak menjalankan `npm install`/`pnpm install` di project.
+- Tidak mengubah source, `.env`, atau konfigurasi project.
+- Tidak menyimpan credential/token/API key.
+- Tidak menghapus atau men-downgrade tool yang sudah ada.
+- Tidak restart service dan tidak reboot VPS.
+- Idempotent: run berulang menghasilkan hasil identik tanpa efek samping.
 
 ## Log
 
